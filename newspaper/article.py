@@ -252,8 +252,7 @@ class Article(object):
             self.set_article_html(article_html)
             self.set_text(text)
 
-        if self.config.fetch_images:
-            self.fetch_images()
+        self.fetch_images()
 
         self.is_parsed = True
         self.release_resources()
@@ -272,9 +271,12 @@ class Article(object):
         if self.clean_top_node is not None and not self.has_top_image():
             first_img = self.extractor.get_first_img_url(
                 self.url, self.clean_top_node)
-            self.set_top_img(first_img)
+            if self.config.fetch_images:
+                self.set_top_img(first_img)
+            else:
+                self.set_top_img_no_check(first_img)
 
-        if not self.has_top_image():
+        if not self.has_top_image() and self.config.fetch_images:
             self.set_reddit_top_img()
 
     def has_top_image(self):
@@ -341,7 +343,8 @@ class Article(object):
         """
         self.throw_if_not_downloaded_verbose()
         self.throw_if_not_parsed_verbose()
-
+        
+        nlp.load_stopwords(self.config.get_language())
         text_keyws = list(nlp.keywords(self.text).keys())
         title_keyws = list(nlp.keywords(self.title).keys())
         keyws = list(set(title_keyws + text_keyws))
