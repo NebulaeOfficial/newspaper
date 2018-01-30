@@ -29,12 +29,14 @@ class Category(object):
         self.url = url
         self.html = None
         self.doc = None
+        self.articles = []
 
 
 class Feed(object):
     def __init__(self, url):
         self.url = url
         self.rss = None
+        self.articles = []
         # TODO self.dom = None, speed up Feedparser
 
 
@@ -273,6 +275,7 @@ class Source(object):
             after_memo = len(cur_articles)
 
             articles.extend(cur_articles)
+            feed.articles = cur_articles
 
             if self.config.verbose:
                 print(('%d->%d->%d for %s' %
@@ -311,6 +314,7 @@ class Source(object):
             after_memo = len(cur_articles)
 
             articles.extend(cur_articles)
+            category.articles = cur_articles
 
             if self.config.verbose:
                 print(('%d->%d->%d for %s' %

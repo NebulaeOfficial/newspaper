@@ -11,7 +11,7 @@ from .api import (build, build_article, fulltext, hot, languages,
                   popular_urls, Configuration as Config)
 from .article import Article, ArticleException
 from .mthreading import NewsPool
-from .source import Source
+from .source import Source, Category, Feed
 from .version import __version__
 
 news_pool = NewsPool()
