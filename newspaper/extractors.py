@@ -15,12 +15,14 @@ import copy
 import logging
 import re
 import re
+import time
 from collections import defaultdict
 
 from dateutil.parser import parse as date_parser
 from tldextract import tldextract
 from urllib.parse import urljoin, urlparse, urlunparse
-
+from datetime import datetime
+from datetime import date, timedelta, timezone
 from . import urls
 from .utils import StringReplacement, StringSplitter
 
@@ -178,6 +180,12 @@ class ContentExtractor(object):
         2. Pubdate from metadata
         3. Raw regex searches in the HTML + added heuristics
         """
+        def Local2UTC(LocalTime):
+
+            EpochSecond = time.mktime(LocalTime.timetuple())
+            utcTime = datetime.utcfromtimestamp(EpochSecond)
+
+            return utcTime
         def parse_date_str(date_str):
             if date_str:
                 try:
@@ -195,17 +203,17 @@ class ContentExtractor(object):
             for published_date in match:
                 date = parse_date_str(published_date.group(0))
                 if date != None:
-                    list_of_dates.append(date)
+                    list_of_dates.append(Local2UTC(date))
             match2 = re.finditer(r'\w+\s\d+,\s+\d\d\d\d(?:(\s\d+:\d+\s\w+)|(\s))', html)
             for publish_date in match2:
                 datestr = parse_date_str(publish_date.group(0))
                 if datestr != None:
-                    list_of_dates.append(datestr)
+                    list_of_dates.append(Local2UTC(datestr))
             match3 = re.finditer(r'(Jan(uary)?|Feb(ruary)?|Mar(ch)?|Apr(il)?|May|Jun(e)?|Jul(y)?|Aug(ust)?|Sep(tember)?|Oct(ober)?|Nov(ember)?|Dec(ember)?)\s+\d{1,2},\s+\d{4}', html)
             for publishdate in match3:
                 datestr = parse_date_str(publishdate.group(0))
                 if datestr != None:
-                    list_of_dates.append(datestr)
+                    list_of_dates.append(Local2UTC(datestr))
             if not list_of_dates:
                 return None
             list_of_dates.sort()
@@ -260,8 +268,7 @@ class ContentExtractor(object):
             if datetime_obj:
                 return datetime_obj
         date_str = check_datetime_in_html()
-        datetime_obj = parse_date_str(date_str)
-        return datetime_obj
+        return date_str
 
     def get_title(self, doc):
         """Fetch the article title and analyze it
