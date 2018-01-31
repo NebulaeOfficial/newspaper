@@ -15,12 +15,14 @@ import copy
 import logging
 import re
 import re
+import time
 from collections import defaultdict
 
 from dateutil.parser import parse as date_parser
 from tldextract import tldextract
 from urllib.parse import urljoin, urlparse, urlunparse
-
+from datetime import datetime
+from datetime import date, timedelta, timezone
 from . import urls
 from .utils import StringReplacement, StringSplitter
 
@@ -169,7 +171,7 @@ class ContentExtractor(object):
         #    return [] # Failed to find anything
         # return authors
 
-    def get_publishing_date(self, url, doc):
+    def get_publishing_date(self, url, doc, html):
         """3 strategies for publishing date extraction. The strategies
         are descending in accuracy and the next strategy is only
         attempted if a preferred one fails.
@@ -178,22 +180,51 @@ class ContentExtractor(object):
         2. Pubdate from metadata
         3. Raw regex searches in the HTML + added heuristics
         """
+        def Local2UTC(LocalTime):
 
+            EpochSecond = time.mktime(LocalTime.timetuple())
+            utcTime = datetime.utcfromtimestamp(EpochSecond)
+
+            return utcTime
         def parse_date_str(date_str):
             if date_str:
                 try:
-                    return date_parser(date_str)
-                except (ValueError, OverflowError, AttributeError, TypeError):
+                    parsed_date = date_parser(date_str)
+                    return parsed_date
+                except (ValueError, OverflowError, AttributeError):
                     # near all parse failures are due to URL dates without a day
                     # specifier, e.g. /2014/04/
                     return None
-
-        date_match = re.search(urls.STRICT_DATE_REGEX, url)
-        if date_match:
-            date_str = date_match.group(0)
-            datetime_obj = parse_date_str(date_str)
-            if datetime_obj:
-                return datetime_obj
+        def check_datetime_in_html():
+            list_of_dates = []
+            match = re.finditer(
+                r'(?:([\./\-_]{0,1}(19|20)\d{2})[\./\-_]{0,1}(([0-3]{0,1}[0-9][\./\-_])|(\w{3,5}[\./\-_]))([0-3]{0,1}[0-9][\./\-]{0,1}))',
+                html)
+            for published_date in match:
+                date = parse_date_str(published_date.group(0))
+                if date != None:
+                    list_of_dates.append(Local2UTC(date))
+            match2 = re.finditer(r'\w+\s\d+,\s+\d\d\d\d(?:(\s\d+:\d+\s\w+)|(\s))', html)
+            for publish_date in match2:
+                datestr = parse_date_str(publish_date.group(0))
+                if datestr != None:
+                    list_of_dates.append(Local2UTC(datestr))
+            match3 = re.finditer(r'(Jan(uary)?|Feb(ruary)?|Mar(ch)?|Apr(il)?|May|Jun(e)?|Jul(y)?|Aug(ust)?|Sep(tember)?|Oct(ober)?|Nov(ember)?|Dec(ember)?)\s+\d{1,2},\s+\d{4}', html)
+            for publishdate in match3:
+                datestr = parse_date_str(publishdate.group(0))
+                if datestr != None:
+                    list_of_dates.append(Local2UTC(datestr))
+            if not list_of_dates:
+                return None
+            list_of_dates.sort()
+            todays_date = datetime.now()
+            dates_less_than_todaysdate = []
+            for date in list_of_dates:
+                if date < todays_date:
+                    dates_less_than_todaysdate.append(date)
+            dates_less_than_todaysdate.sort()
+            datetime_obj = dates_less_than_todaysdate[0]
+            return datetime_obj
 
         PUBLISH_DATE_TAGS = [
             {'attribute': 'property', 'value': 'rnews:datePublished',
@@ -217,6 +248,7 @@ class ContentExtractor(object):
             {'attribute': 'pubdate', 'value': 'pubdate',
              'content': 'datetime'},
         ]
+
         for known_meta_tag in PUBLISH_DATE_TAGS:
             meta_tags = self.parser.getElementsByTag(
                 doc,
@@ -229,8 +261,14 @@ class ContentExtractor(object):
                 datetime_obj = parse_date_str(date_str)
                 if datetime_obj:
                     return datetime_obj
-
-        return None
+        date_match = re.search(urls.DATE_REGEX, url)
+        if date_match:
+            date_str = date_match.group(0)
+            datetime_obj = parse_date_str(date_str)
+            if datetime_obj:
+                return datetime_obj
+        datetime_obj = check_datetime_in_html()
+        return datetime_obj
 
     def get_title(self, doc):
         """Fetch the article title and analyze it
