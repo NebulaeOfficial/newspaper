@@ -267,8 +267,8 @@ class ContentExtractor(object):
             datetime_obj = parse_date_str(date_str)
             if datetime_obj:
                 return datetime_obj
-        date_str = check_datetime_in_html()
-        return date_str
+        datetime_obj = check_datetime_in_html()
+        return datetime_obj
 
     def get_title(self, doc):
         """Fetch the article title and analyze it
